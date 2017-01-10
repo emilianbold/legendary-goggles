@@ -44,7 +44,6 @@
 
 package org.openide.util;
 
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.HeadlessException;
@@ -57,7 +56,6 @@ import java.awt.image.ColorModel;
 import java.awt.image.FilteredImageSource;
 import java.awt.image.ImageObserver;
 import java.awt.image.ImageProducer;
-import java.awt.image.IndexColorModel;
 import java.awt.image.RGBImageFilter;
 import java.awt.image.WritableRaster;
 import java.io.IOException;
@@ -72,9 +70,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageReadParam;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
@@ -115,9 +110,6 @@ public final class ImageUtilities {
     private static final MediaTracker tracker = new MediaTracker(component);
     private static int mediaTrackerID;
     
-    private static ImageReader PNG_READER;
-//    private static ImageReader GIF_READER;
-    
     private static final Logger ERR = Logger.getLogger(ImageUtilities.class.getName());
     
     private static final String DARK_LAF_SUFFIX = "_dark"; //NOI18N
@@ -127,8 +119,6 @@ public final class ImageUtilities {
 
     static {
         ImageIO.setUseCache(false);
-        PNG_READER = ImageIO.getImageReadersByMIMEType("image/png").next();
-//        GIF_READER = ImageIO.getImageReadersByMIMEType("image/gif").next();
     }
 
     /**
@@ -552,41 +542,11 @@ public final class ImageUtilities {
             java.net.URL url = (loader != null) ? loader.getResource(n)
                                                 : ImageUtilities.class.getClassLoader().getResource(n);
 
+            //XXX: Toolkit.getDefaultToolkit().createImage does not load retina images! Toolkit.getDefaultToolkit().getImage DOES but also creates a paralel cache.
 //            img = (url == null) ? null : Toolkit.getDefaultToolkit().createImage(url);
             Image result = null;
             try {
-                if (url != null) {
-                    if (name.endsWith(".png")) {
-                        ImageInputStream stream = ImageIO.createImageInputStream(url.openStream());
-                        ImageReadParam param = PNG_READER.getDefaultReadParam();
-                        try {
-                            PNG_READER.setInput(stream, true, true);
-                            result = PNG_READER.read(0, param);
-                        }
-                        catch (IOException ioe1) {
-                            ERR.log(Level.INFO, "Image "+name+" is not PNG", ioe1);
-                        }
-                        stream.close();
-                    } 
-                    /*
-                    else if (name.endsWith(".gif")) {
-                        ImageInputStream stream = ImageIO.createImageInputStream(url.openStream());
-                        ImageReadParam param = GIF_READER.getDefaultReadParam();
-                        try {
-                            GIF_READER.setInput(stream, true, true);
-                            result = GIF_READER.read(0, param);
-                        }
-                        catch (IOException ioe1) {
-                            ERR.log(Level.INFO, "Image "+name+" is not GIF", ioe1);
-                        }
-                        stream.close();
-                    }
-                     */
-
-                    if (result == null) {
-                        result = ImageIO.read(url);
-                    }
-                }
+                result = (url == null) ? null : ImageIO.read(url);
             } catch (IOException ioe) {
                 ERR.log(Level.WARNING, "Cannot load " + name + " image", ioe);
             }
