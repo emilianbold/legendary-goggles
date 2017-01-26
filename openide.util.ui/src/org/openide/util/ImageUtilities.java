@@ -74,6 +74,9 @@ import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.UIManager;
+import org.netbeans.modules.openide.util.retina.FilterableIcon;
+import org.netbeans.modules.openide.util.retina.RetinaImageIcon;
+import org.netbeans.modules.openide.util.retina.RetinaMultiResolutionImage;
 
 /** 
  * Useful static methods for manipulation with images/icons, results are cached.
@@ -113,6 +116,7 @@ public final class ImageUtilities {
     private static final Logger ERR = Logger.getLogger(ImageUtilities.class.getName());
     
     private static final String DARK_LAF_SUFFIX = "_dark"; //NOI18N
+    private static final String RETINA_SUFFIX = "@2x"; //NOI18N
     
     private ImageUtilities() {
     }
@@ -158,6 +162,13 @@ public final class ImageUtilities {
             image = getIcon(addDarkSuffix(resource), localized);
             // found an image with _dark-suffix, so there no need to apply an
             // image filter to make it look nice using dark themes
+            if (image != null && RetinaToolkit.isRetina()) {
+                Image retina = loadImage(addRetinaSuffix(addDarkSuffix(resource)), localized);
+
+                if(retina != null) {
+                    image = RetinaToolkit.getDefault().createImageIcon(image, retina).getImage();
+                }
+            }
         }
         if (null == image) {
             image = getIcon(resource, localized);
@@ -167,6 +178,20 @@ public final class ImageUtilities {
                 image = Toolkit.getDefaultToolkit()
                         .createImage(new FilteredImageSource(image.getSource(), imageFilter));
             }
+
+            if (null != image && RetinaToolkit.isRetina()) {
+                Image retina = loadImage(addRetinaSuffix(resource), localized);
+                
+                if (retina != null) {
+                    if (imageFilter != null) {
+                        retina = Toolkit.getDefaultToolkit()
+                                .createImage(new FilteredImageSource(retina.getSource(), imageFilter));
+                    }
+
+                    image = RetinaToolkit.getDefault().createImageIcon(image, retina).getImage();
+                }
+            }
+
         }
         return image;
     }
@@ -197,6 +222,14 @@ public final class ImageUtilities {
         return UIManager.getBoolean("nb.dark.theme"); //NOI18N 
     }
     
+    private static String addRetinaSuffix( String resourceName ) {
+        int dotIndex = resourceName.lastIndexOf('.');
+        if( dotIndex > 0 ) {
+            return resourceName.substring(0, dotIndex) + RETINA_SUFFIX + resourceName.substring(dotIndex);
+        }
+        return resourceName + RETINA_SUFFIX;
+    }
+
     /**
      * 
      * @param resourceName
@@ -263,6 +296,13 @@ public final class ImageUtilities {
     public static final Icon image2Icon(Image image) {
         if (image instanceof ToolTipImage) {
             return ((ToolTipImage) image).getIcon();
+        } else if(image instanceof RetinaMultiResolutionImage) {
+            RetinaMultiResolutionImage mi = (RetinaMultiResolutionImage) image;
+            
+            Image plain = mi.getResolutionVariants().get(0);
+            Image retina = mi.getResolutionVariants().get(1);
+
+            return new RetinaImageIcon(plain, retina);
         } else {
             return new ImageIcon(image);
         }
@@ -357,6 +397,13 @@ public final class ImageUtilities {
      */
     public static Icon createDisabledIcon(Icon icon)  {
         Parameters.notNull("icon", icon);
+        if (icon instanceof Lookup.Provider) {
+            FilterableIcon filterableIcon = ((Lookup.Provider) icon).getLookup().lookup(FilterableIcon.class);
+            if (filterableIcon != null) {
+                return filterableIcon.lazyIcon(DisabledButtonFilter.INSTANCE);
+            }
+        }
+
         return new LazyDisabledIcon(icon2Image(icon));
     }
 
@@ -897,6 +944,8 @@ public final class ImageUtilities {
     }
 
     private static class DisabledButtonFilter extends RGBImageFilter {
+
+        private final static DisabledButtonFilter INSTANCE = new DisabledButtonFilter();
 
         DisabledButtonFilter() {
             canFilterIndexColorModel = true;
